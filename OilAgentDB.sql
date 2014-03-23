@@ -1,27 +1,27 @@
 
---创建代理服务器数据库
+
 create database OilAgentDB default character set 'utf8' collate 'utf8_general_ci';
 
 use OilAgentDB;
 
---ServerInfo表
+
 create table ServerInfo
 (
-	account varchar(20) not null primary key,  --机房服务器账户
-	ip		int unsigned,					--机房服务器ip,可以为NULL，第一次录入时即为NULL
-	port	smallint unsigned					--机房服务器端口
+	account varchar(20) not null primary key,  
+	ip		int unsigned,					
+	port	smallint unsigned					
 )engine=InnoDB default charset=utf8;
 
 
---UserInfo表
+
 create table UserInfo
 (
-	username varchar(20) not null primary key, --用户名
-	password varchar(20) not null --密码
+	username varchar(20) not null primary key, 
+	password varchar(20) not null 
 )engine=InnoDB default charset=utf8;
 
 
---UserInServer表
+
 create table UserInServer
 (
 	username varchar(20) not null,
@@ -31,7 +31,7 @@ create table UserInServer
 	foreign key (account) references ServerInfo(account)
 )engine=InnoDB default charset=utf8;
 
---插入数据
+
 use OilAgentDB;
 
 insert into ServerInfo(account) values("oil001");
