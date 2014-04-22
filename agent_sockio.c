@@ -20,8 +20,9 @@ uint16 my_recvfrom(int fd,void *buf,unsigned int flags,struct sockaddr *from,soc
 	int len = recvfrom(fd,buf,MAXDATALENGTH,flags,from,fromlen);
 	if(len == -1)
 	{
-		printf("error info: %s\n",strerror(errno));
+		debug("recv error info: %s\n",strerror(errno));
 		return 0u;
 	}
+//	debug("recv ok, len = %d\n",len);
 	return (uint16)len;
 }

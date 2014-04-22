@@ -2,8 +2,8 @@
 #代理服务器程序makefile文件
 
 #目标文件集
-objects=agent_entry.o agent_threadtask.o agent_dbio.o agent_dbpool.o agent_sendlist.o agent_activeuser.o agent_sockio.o
-args=-lpthread `mysql_config --cflags --libs` -std=c99
+objects=agent_entry.o agent_threadtask.o agent_dbio.o agent_dbpool.o agent_sendlist.o agent_activeuser.o agent_sockio.o agent_debug.o
+args=-lpthread `mysql_config --cflags --libs` -std=gnu99
 
 OilAgentServer : $(objects)
 	gcc -g -o OilAgentServer $(objects) $(args)
@@ -22,6 +22,8 @@ agent_activeuser.o : agent_activeuser.h
 	gcc -c agent_activeuser.c $(args)
 agent_sockio.o : agent_sockio.h
 	gcc -c agent_sockio.c $(args)
+agent_debug.o : agent_debug.h
+	gcc -c agent_debug.c $(args)
 
 
 #清除生成文件

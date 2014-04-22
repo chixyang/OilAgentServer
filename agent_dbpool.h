@@ -47,7 +47,6 @@ struct DBpool
   dbBusyList *busylist;     //忙碌列表
   dbIdleList *idlelist;     //空闲列表
   int idle_size;            //空闲列表大小,专门加这个值是为了确保程序的正确性，还可以帮助系统分析是否添加数据库链接
-  int db_shutdown;          //关闭标识符，0表示线程池正常使用，1表示线程池撤销
 };
 
 
@@ -98,20 +97,5 @@ int recycleConn(MYSQL *link);
  *         返回其他表示未查到节点
  */
 int getPreNode(dbList *dblist,MYSQL *link,dbList **preNode);
-
-/**
- * 向链接池中添加新链接
- * @param add_num 需要添加的数目
- * @return 已添加的数目
- */
-int dbpool_add_dblink(int add_num);
-
-/**
- * 销毁链接池,如果忙碌列表不为空，则等待忙碌列表为空后进行销毁
- * @return 0 表示销毁成功，其他表示已经被销毁
- */
-int dbpool_destroy();
-
-
 
 #endif

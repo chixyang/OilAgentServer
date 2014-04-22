@@ -8,7 +8,7 @@
 #define mysql_setUTF8(x)    do{                                          	\
                               if(mysql_query(x,"set names \'utf8\'"))     	\
 	                                 {                                      \
-		                                    perror("set utf8 error");       \
+								debug("set utf8 error : %s",mysql_error(x));	 \
 		                                    recycleConn(x);                 \
 									 }	\
 	                          }while(0)
@@ -23,7 +23,10 @@ uint64 getCurrentTimeSeconds()
 int addPrivateServer(char *account,ip_t ip,uint16 port)
 {
 	if((account == NULL) || (((ip_t)0) == ip) || (((uint16)0) == port))
-		return -1;
+	{
+			debug("add private server error : pAccount = %lu,pIp = %lu,pPort = %hu",(unsigned long)account,ip,port);
+			return -1;
+	}
 	MYSQL *conn = getIdleConn();
 	unsigned long affected_rows = 0;   //改变的语句数目
 	char *sql_str = NULL;   //sql语句
@@ -33,12 +36,12 @@ int addPrivateServer(char *account,ip_t ip,uint16 port)
 	//设置插入语句
 	sql_str = (char *)malloc(sizeof(char) * 200);
 	memset(sql_str,0,200);
-	sprintf(sql_str,"insert into ServerInfo(account,ip,port) values('%s','%ud','%hu')", \
+	sprintf(sql_str,"insert into ServerInfo(account,ip,port) values('%s',%lu,%hu)", \
 	         account,ip,port);
 	//执行插入并判断插入是否成功
 	if(mysql_query(conn,sql_str) || ((affected_rows = mysql_affected_rows(conn)) < 1))
 	{
-		perror("add server error");
+		debug("add server error : %s",mysql_error(conn));
 		recycleConn(conn);
 		free(sql_str);
 		return -1;
@@ -54,7 +57,10 @@ int addPrivateServer(char *account,ip_t ip,uint16 port)
 int addUser(char *username,char *password)
 {
 	if((NULL == username) || (NULL == password))
+	{
+		debug("add user error : pUsername = %lu,pPassword = %lu",(unsigned long)username,(unsigned long)password);
 		return -1;
+	}
 	MYSQL *conn = getIdleConn();
 	unsigned long affected_rows = 0;   //改变的语句数目
 	char *sql_str = NULL;   //sql语句
@@ -69,7 +75,7 @@ int addUser(char *username,char *password)
 	//执行插入并判断插入是否成功
 	if(mysql_query(conn,sql_str) || ((affected_rows = mysql_affected_rows(conn)) < 1))
 	{
-		perror("add user error");
+		debug("add user error: %s",mysql_error(conn));
 		recycleConn(conn);
 		free(sql_str);
 		return -1;
@@ -85,7 +91,10 @@ int addUser(char *username,char *password)
 int addUserInServer(char *username,char *account)
 {
 	if((NULL == username) || (NULL == account))
+	{
+		debug("add user in server error,pUsername=%lu,pAccount=%lu",(unsigned long)username,(unsigned long)account);
 		return -1;
+	}
 	MYSQL *conn = getIdleConn();
 	unsigned long affected_rows = 0;   //改变的语句数目
 	char *sql_str = NULL;   //sql语句
@@ -100,7 +109,7 @@ int addUserInServer(char *username,char *account)
 	//执行插入并判断插入是否成功
 	if(mysql_query(conn,sql_str) || ((affected_rows = mysql_affected_rows(conn)) < 1))
 	{
-		perror("add user error");
+		debug("add user error: %s",mysql_error(conn));
 		recycleConn(conn);
 		free(sql_str);
 		return -1;
@@ -116,7 +125,10 @@ int addUserInServer(char *username,char *account)
 int checkUser(char *username,char *password)
 {
 	if((NULL == username) || (NULL == password))
-		return -1;
+	{
+			debug("check user error,pUsername=%lu,pPassword=%lu",(unsigned long)username,(unsigned long)password);
+			return -1;
+	}
 	MYSQL *conn = getIdleConn();
 	MYSQL_RES *res;      //查询的result
 	MYSQL_ROW row;
@@ -131,7 +143,7 @@ int checkUser(char *username,char *password)
 	//执行查询
 	if(mysql_query(conn,sql_str))
 	{
-		perror("query user info error");
+		debug("query user info error:%s",mysql_error(conn));
 		recycleConn(conn);
 		free(sql_str);
 		return -1;
@@ -158,7 +170,10 @@ int checkUser(char *username,char *password)
 char *getServerByUser(char *username)
 {
 	if(NULL == username)
+	{
+		debug("get server by user error,pUsername=%lu",(unsigned long)username);
 		return NULL;
+	}
 	MYSQL *conn = getIdleConn();
 	MYSQL_RES *res;      //查询的result
 	MYSQL_ROW row;
@@ -173,7 +188,7 @@ char *getServerByUser(char *username)
 	//执行查询
 	if(mysql_query(conn,sql_str))
 	{
-		perror("get server by user error");
+		debug("get server by user error : %s",mysql_error(conn));
 		recycleConn(conn);
 		free(sql_str);
 		return NULL;
@@ -204,7 +219,10 @@ char *getServerByUser(char *username)
 DBServer *getServerInfo(char *account)
 {
 	if(NULL == account)
+	{
+		debug("get server info error : pAccount=%lu",(unsigned long)account);
 		return NULL;
+	}
 	MYSQL *conn = getIdleConn();
 	MYSQL_RES *res;      //查询的result
 	MYSQL_ROW row;
@@ -219,7 +237,7 @@ DBServer *getServerInfo(char *account)
 	//执行查询
 	if(mysql_query(conn,sql_str))
 	{
-		perror("get serverinfo error");
+		debug("get serverinfo error : %s",mysql_error(conn));
 		recycleConn(conn);
 		free(sql_str);
 		return NULL;
@@ -252,7 +270,10 @@ DBServer *getServerInfo(char *account)
 int updatePrivateServer(char *account,ip_t ip,uint16 port)
 {
 	if((NULL == account) || (((ip_t)0) == ip) || (((uint16)0) == port))
+	{
+		debug("update private server error,pAccount=%lu,Ip=%lu,Port=%hu",((long unsigned)account),ip,port);
 		return -1;
+	}
 	MYSQL *conn = getIdleConn();
 	unsigned long affected_rows = 0;   //改变的语句数目
 	char *sql_str = NULL;   //sql语句
@@ -262,16 +283,14 @@ int updatePrivateServer(char *account,ip_t ip,uint16 port)
 	//设置插入语句
 	sql_str = (char *)malloc(sizeof(char) * 200);
 	memset(sql_str,0,200);
-	sprintf(sql_str,"update ServerInfo set ip = '%ud',port = '%hu' where account = '%s'", \
+	sprintf(sql_str,"update ServerInfo set ip = %lu,port = %hu where account = '%s'", \
 	         ip,port,account);
 	//执行插入并判断插入是否成功
 	int ret_query = mysql_query(conn,sql_str);
-	affected_rows = mysql_affected_rows(conn);  //这种mysql_query有bug，不要检查affected rows，否则为0
+	affected_rows = mysql_affected_rows(conn); 
 	if(ret_query)
 	{
-		debug("ret_query : %d     affected_rows: %ld\n",ret_query,affected_rows);
-		perror("update server error");
-		debug("%s\n",strerror(errno));
+		debug("update private server error : %s",mysql_error(conn));
 		recycleConn(conn);
 		free(sql_str);
 		return -1;

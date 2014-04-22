@@ -5,9 +5,9 @@
 
 
 
-#define TIMER 6     //轮询次数为6次，每次半分钟
+#define TIMER 5     //轮询次数为5次，每次一分钟
 
-#define SLEEPTIME 30  //30s轮询一次
+#define SLEEPTIME 60  //60s轮询一次
 
 //链表表头
 ActiveUser *ActiveList;
@@ -28,25 +28,28 @@ void initActiveList()
 int addActiveUser(char *username,struct sockaddr_in* ptrUaddr,char *account,struct sockaddr_in* ptrSaddr)
 {
 	if((username == NULL) || (ptrUaddr == NULL) || (account == NULL) || (ptrSaddr == NULL))
-		return -1;
+	{
+			debug("add active user error,pUsername=%lu,pUaddr=%lu,pAccount=%lu,pSaddr=%lu",(unsigned long)username,(unsigned long)ptrUaddr,(unsigned long)account,(unsigned long)ptrSaddr);
+			return -1;
+	}
 
 	//先轮训查找节点是否已经存在，若存在则查看地址是否相同，相同则返回，不同删除原来地址，如不存在则直接新建
 	pthread_mutex_lock(&active_list_lock);
 	ActiveUser *au = ActiveList->next, *preNode = ActiveList;
-	while(au != NULL)
+	while((au != NULL) && (au->timer != 0))
 	{
 		if(!memcmp(au->username,username,strlen(username)))  //用户名相同
 		{
 			if((ptrUaddr->sin_addr.s_addr == au->useraddr.sin_addr.s_addr) && (ptrUaddr->sin_port == au->useraddr.sin_port) && (ptrSaddr->sin_addr.s_addr == au->serveraddr.sin_addr.s_addr) && (ptrSaddr->sin_port == au->serveraddr.sin_port)) //双方地址也相同,即不用加入了
 			{
-				debug("duplicate node in active user list");
+				//debug("duplicate node in active user list");
 				pthread_mutex_unlock(&active_list_lock);
+				au->timer = TIMER;
 				return 0;
 			}
-			//双方节点不相同，删除原节点
+			//双方地址不相同，删除原节点
 			else
 				au->timer = 0;   //设置timer为0,到时自动删除
-			break;
 		}
 		preNode = au;
 		au = preNode->next;
@@ -74,32 +77,14 @@ int addActiveUser(char *username,struct sockaddr_in* ptrUaddr,char *account,stru
 	return 0;
 }
 
-//删除节点
-int deleteActiveUser(ActiveUser *preAu)
-{
-	if(preAu == NULL)
-		return -1;
-	
-	//需要加锁
-	pthread_mutex_lock(&active_list_lock);
-	//删除传递节点的后一个节点
-	ActiveUser *au = preAu->next;
-	//从列表上删除该节点
-	preAu->next = au->next;
-	//清空数值并释放空间,也在锁内是为了防止清空释放时该节点正被使用
-	memset(au,0,sizeof(ActiveUser));
-	free(au);
-	//解锁
-	pthread_mutex_unlock(&active_list_lock);
-
-	return 0;
-}
-
 //根据用户名找到某个节点
 ActiveUser *getActiveUserByName(char *username,struct sockaddr_in *useraddr,struct sockaddr_in *serveraddr,enum ToAddrLabel type)
 {
 	if((username == NULL) || ((useraddr == NULL) && (serveraddr == NULL)) || (type == TAL_NONE))
-		return NULL;
+	{
+			debug("get active user by name error,pUsername=%lu,pUaddr=%lu,pSaddr=%lu,type=%1u",(unsigned long)username,(unsigned long)useraddr,(unsigned long)serveraddr,type);
+			return NULL;
+	}
 
 	//需要加锁,防止搜索的时候有节点被删除
 	pthread_mutex_lock(&active_list_lock);
@@ -107,7 +92,7 @@ ActiveUser *getActiveUserByName(char *username,struct sockaddr_in *useraddr,stru
 	//debug("username : %s\n",username);
 	//debug("au is : %d\n",(int)au);
 	//循环搜索匹配节点
-	while(au != NULL)
+	while((au != NULL) && (au->timer != 0))
 	{
 		//debug("au->username is : %s\n",au->username);
 		if(!memcmp(au->username,username,strlen(username)))  //找到所需节点
@@ -118,6 +103,7 @@ ActiveUser *getActiveUserByName(char *username,struct sockaddr_in *useraddr,stru
 				if(serveraddr == NULL)
 				{
 					pthread_mutex_unlock(&active_list_lock);
+					debug("when send to server,pServer is NULL");
 					return NULL;
 				}
 				memcpy(serveraddr,&(au->serveraddr),sizeof(struct sockaddr_in));
@@ -127,6 +113,7 @@ ActiveUser *getActiveUserByName(char *username,struct sockaddr_in *useraddr,stru
 			{
 				if(useraddr == NULL)
 				{
+					debug("when send to user,pUser is NULL");
 					pthread_mutex_unlock(&active_list_lock);
 					return NULL;
 				}
@@ -136,6 +123,7 @@ ActiveUser *getActiveUserByName(char *username,struct sockaddr_in *useraddr,stru
 			{
 				if((useraddr == NULL) || (serveraddr == NULL))
 				{
+					debug("when need both address,ethier is NULL,pUaddr=%lu,pSaddr=%lu",(unsigned long)useraddr,(unsigned long)serveraddr);
 					pthread_mutex_unlock(&active_list_lock);
 					return NULL;
 				}
@@ -153,16 +141,69 @@ ActiveUser *getActiveUserByName(char *username,struct sockaddr_in *useraddr,stru
 	return au;
 }
 
+//更新活跃列表里的服务器信息，主要用于服务器报告自身信息时候，ip和port都已经是网络地址格式
+int updateActiveServer(char *account,uint32 ip,uint16 port)
+{
+		if((NULL == account) || (ip == (uint32)0) || (port == (uint16)0))
+		{
+				debug("update active server error:pAccount = %s,IP = %lu,Port = %2u",account,(long unsigned int)ip,(unsigned short)port);
+				return -1;
+		}
+
+		pthread_mutex_lock(&active_list_lock);
+		ActiveUser *au = ActiveList->next, *preNode = ActiveList;
+		while((au != NULL) && (au->timer != 0))
+		{
+			if(!memcmp(au->account,account,strlen(account)))  //服务器账号相同，则修改服务器ip和port信息
+			{
+				au->serveraddr.sin_addr.s_addr = ip;
+				au->serveraddr.sin_port = port;
+			}
+			preNode = au;
+			au = preNode->next;
+		}
+		pthread_mutex_unlock(&active_list_lock);
+
+		return 0;
+}
+
+//删除活跃用户列表节点
+int deleteActiveUser(char *username)
+{
+	if(NULL == username)
+	{
+		debug("delete Active User error,username = NULL");
+		return -1;
+	}
+
+	pthread_mutex_lock(&active_list_lock);
+	ActiveUser *au = ActiveList->next, *preNode = ActiveList;
+	while((au != NULL) && (au->timer != 0))
+	{
+		if(!memcmp(au->username,username,strlen(username)))  //用户名相同，则置timer为0即可，删除由专门线程删除
+		{
+			au->timer = 0;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&active_list_lock);
+
+	return 0;
+}
+
 //轮询列表，各节点timer减一，timer已为零则删除
 void * pollActiveList()
 {
 	//死循环
 	while(1)
 	{
-		//休眠固定时间，sleep线程安全，不休眠进程
-		sleep(SLEEPTIME);
+		//休眠固定时间
+		struct timeval tv;
+		tv.tv_sec = SLEEPTIME;
+		tv.tv_usec = 0;
+		select(0,NULL,NULL,NULL,&tv);
 		/* 轮询链表 */
-		//需要加锁,防止搜索的时候有节点被删除
+		//需要加锁,防止搜索的时候有其他处理
 		pthread_mutex_lock(&active_list_lock);
 		ActiveUser *preAu = ActiveList, *au = preAu->next;
 	

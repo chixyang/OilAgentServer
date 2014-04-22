@@ -56,6 +56,21 @@ int addActiveUser(char *username,struct sockaddr_in* ptrUaddr,char *account,stru
 ActiveUser *getActiveUserByName(char *username,struct sockaddr_in *useraddr,struct sockaddr_in *serveraddr,enum ToAddrLabel type);
 
 /**
+ * 更新活跃列表里的服务器信息
+ * @param ip 服务器ip，已经是网络格式
+ * @param port 服务器port，已经是网络格式
+ * @return 0 表示成功，其他失败
+ */
+int updateActiveServer(char *account,uint32 ip,uint16 port);
+
+/**
+ * 删除活跃用户列表节点
+ * @param username 活跃用户名
+ * @return 成功返回0，否则返回-1
+ */
+int deleteActiveUser(char *username);
+
+/**
  * 轮询活动用户列表，各节点timer减一，timer小于等于零则删除该节点（该函数供固定线程调用）
  */
 void * pollActiveList();

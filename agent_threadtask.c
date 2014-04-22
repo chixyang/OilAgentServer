@@ -26,19 +26,13 @@ const uint8 CMD_REQTEMP = 0x05;
 const uint8 CMD_RPYTEMP = 0x06;
 //开阀记录查询请求命令
 const uint8 CMD_REQLOCK = 0x07;
-//开发记录查询回复命令
+//开阀记录查询回复命令
 const uint8 CMD_RPYLOCK = 0x08;
-//视频请求命令
-const uint8 CMD_REQVIDEO = 0x09;
-//视频回复命令
-const uint8 CMD_RPYVIDEO = 0x10;
-//取消视频实时发送命令
-const uint8 CMD_CNLVIDEO = 0xF9;
 //打洞请求命令
 const uint8 CMD_REQHOLE = 0xFE;
 //打洞回复命令
 const uint8 CMD_RPYHOLE = 0xFF;
-//报警通知协议
+//报警通知命令
 const uint8 CMD_ALARM = 0xF0;
 //液位仪出现或退出命令
 const uint8 CMD_LEVELINOUT = 0xF1;
@@ -48,8 +42,8 @@ const uint8 CMD_TEMPINOUT = 0xF2;
 const uint8 CMD_REQREALLT = 0x0A;
 //实时信息回复协议
 const uint8 CMD_RPYREALLT = 0x0B;
-//取消液位和温度实时传输协议
-const uint8 CMD_CNLREALLT = 0xFA;
+//取消登录协议
+const uint8 CMD_REQLOGOUT = 0x0F;
 
 //任务处理函数
 void *processCommand(void *arg)
@@ -63,6 +57,7 @@ void *processCommand(void *arg)
 	if((cmd->buflen - size_SerialNum) != *((uint16 *)length))  //长度对不上
 	{
 			free(arg);
+			debug("procotol length error");
 			return NULL;
 	}
 	
@@ -71,6 +66,7 @@ void *processCommand(void *arg)
 	if(CheckSum) //校验错误
 	{
 			free(arg);
+			debug("protocol check sum error");
 			return NULL;
 	}
 	
@@ -83,23 +79,34 @@ void *processCommand(void *arg)
 		//debug("server account: %s\n",account);
 		//debug("server ip network : %s port : %hu\n",inet_ntoa(cmd->recv_addr.sin_addr),ntohs(cmd->recv_addr.sin_port));
 		updatePrivateServer(account,cmd->recv_addr.sin_addr.s_addr,cmd->recv_addr.sin_port);
+		//更新活跃列表中的服务器信息
+		updateActiveServer(account,cmd->recv_addr.sin_addr.s_addr,cmd->recv_addr.sin_port);
 	}
 	else if(CMD_REQLOGIN == type) //用户登录服务器
-	{	char *username = cmd->buf + size_SerialNum + size_Length + size_Type;
+	{	
+		char *username = cmd->buf + size_SerialNum + size_Length + size_Type;
 		char *password = cmd->buf + size_SerialNum + size_Length + size_Type + strlen(username) + size_split;
-		//debug("username : %s  password : %s\n",username,password);
+		debug("username : %s  password : %s\n",username,password);
 		ip_t ip = 0;       //机房服务器ip
 		uint16 port = 0;   //机房服务器port
 		if(!checkUser(username,password)) //用户名密码正确
 		{
-		//	debug("check user ok!");
+			debug("check user ok!");
 			//获得机房服务器ip和port
 			char *account = getServerByUser(username); //account需要显式释放
+			if(account == NULL)
+			{
+					free(arg);
+					debug("user name error");
+					return NULL;
+			}
 		//	debug("account : %s\n",account);
 			DBServer *server = getServerInfo(account); //server需显式释放
 		//	debug("after get server info\n");
 			if(server == NULL)
 			{
+				free(account);
+				free(arg);
 				debug("account error\n");
 				return NULL;
 			}
@@ -114,7 +121,14 @@ void *processCommand(void *arg)
 			serveraddr.sin_port = port;
 		//	debug("before add active user\n");
 			//新加活跃用户节点
-			addActiveUser(username,&(cmd->recv_addr),account,&serveraddr);
+			int ret = addActiveUser(username,&(cmd->recv_addr),account,&serveraddr);
+			if(ret == -1)  //添加失败
+			{
+				debug("add active user error");
+				free(account);
+				free(arg);
+				return NULL;
+			}
 			free(account);
 			//向机房服务器发送客户端信息
 			//首先建立协议
@@ -122,8 +136,13 @@ void *processCommand(void *arg)
 			//向服务器发送客户端ip和port,加入发送列表
 		//	debug("before get reply login\n");
 			char *rlp = getReplyLogPtl(&(cmd->recv_addr),cmd->buf,&rlplen);  //rlp需要显示释放
-			InSendQueue(cmd->sockfd,&serveraddr,rlp,rlplen);
-			free(rlp);
+			if(rlp != NULL)
+			{
+					InSendQueue(cmd->sockfd,&serveraddr,rlp,rlplen);
+					free(rlp);
+			}
+			else
+					debug("rlp == NULL");
 		}
 		//向客户端发送服务器ip和port
 		//建立服务器套接字地址
@@ -139,37 +158,40 @@ void *processCommand(void *arg)
 		InSendQueue(cmd->sockfd,&(cmd->recv_addr),rlp,rlplen);
 		free(rlp);
 	}
-	else if((CMD_REQLEVEL == type) || (CMD_REQTEMP == type) || (CMD_REQLOCK == type) || (CMD_REQVIDEO == type) || (CMD_REQREALLT == type))   //这些都是客户端发来的请求
-     	{	//获取用户名
+	else if((CMD_REQLEVEL == type) || (CMD_REQTEMP == type) || (CMD_REQLOCK == type) || (CMD_REQREALLT == type))   //这些都是客户端发来的请求
+    {	//获取用户名
 		char *username = cmd->buf + size_SerialNum + size_Length + size_Type;
 		struct sockaddr_in serveraddr;
 		memset(&serveraddr,0,sizeof(struct sockaddr_in));
 		//检查是否客户端已经登录
 		ActiveUser *au = getActiveUserByName(username,NULL,&serveraddr,TAL_ToServer);
-		debug("reply au is : %d\n",(int)au);
+		debug("reply au is : %ld\n",(unsigned long)au);
 		if(au != NULL) //表示已登录，未登录则不管，即丢掉该包
 		{
+			debug("request send");
 			InSendQueue(cmd->sockfd,&(serveraddr),cmd->buf,cmd->buflen);
 			//更新au中的客户端信息
 			addActiveUser(username,&(cmd->recv_addr),au->account,&serveraddr);
 		}
 	}
-	else if((CMD_RPYLEVEL == type) || (CMD_RPYTEMP == type) || (CMD_RPYLOCK == type) || (CMD_RPYVIDEO == type) || (CMD_RPYREALLT == type)) //以上都是来自服务器的请求
+	else if((CMD_RPYLEVEL == type) || (CMD_RPYTEMP == type) || (CMD_RPYLOCK == type) || (CMD_RPYREALLT == type)) //以上都是来自服务器的请求
 	{	//获取用户名
 		char *username = cmd->buf + size_SerialNum + size_Length + size_Type;
 		struct sockaddr_in useraddr;
 		memset(&useraddr,0,sizeof(struct sockaddr_in));
 		//检查是否客户端已经登录
 		ActiveUser *au = getActiveUserByName(username,&useraddr,NULL,TAL_ToUser);
-	//	debug("cmd type = %x\n",type);
-		//debug("reply au is : %d\n",(int)au);
+		debug("cmd type = %x\n",type);
+		debug("reply au is : %ld\n",(long unsigned)au);
 		if(au != NULL) //表示已登录，未登录则不管，即丢掉该包
 		{
+			debug("reply send");
 			InSendQueue(cmd->sockfd,&(useraddr),cmd->buf,cmd->buflen);
+			//更新au中的服务器信息
 			addActiveUser(username,&useraddr,au->account,&(cmd->recv_addr));
 		}
 	}
-	else if((CMD_CNLVIDEO == type) || (CMD_ALARM == type) || (CMD_LEVELINOUT == type) || (CMD_TEMPINOUT == type) || (CMD_CNLREALLT == type)) //以上不能确定来自谁的请求
+	else if((CMD_ALARM == type) || (CMD_LEVELINOUT == type) || (CMD_TEMPINOUT == type)) //以上不能确定来自谁的请求
 	{	//获取用户名
 		char *username = cmd->buf + size_SerialNum + size_Length + size_Type;
 		//检查是否客户端已经登录
@@ -190,6 +212,13 @@ void *processCommand(void *arg)
 				InSendQueue(cmd->sockfd,addr,cmd->buf,cmd->buflen);
 		}
 	}
+	else if(CMD_REQLOGOUT == type)   //客户端退出登录
+	{
+		char *username = cmd->buf + size_SerialNum + size_Length + size_Type;
+		int ret = deleteActiveUser(username);
+		if(ret != 0)
+				debug("log out error");
+	}
 
 	free(arg);
 	return NULL;
@@ -200,6 +229,11 @@ void *processCommand(void *arg)
 //生成登陆回复协议
 char * getReplyLogPtl(struct sockaddr_in *sockaddr,char *serial_num,uint16 *rlplen)
 {
+	if((sockaddr == NULL) || (serial_num == NULL) || rlplen == NULL)
+	{
+			debug("get reply log protocol error,pSockaddr=%lu,pSerialnum=%lu,pLen=%lu",(unsigned long)sockaddr,(unsigned long)serial_num,(unsigned long)rlplen);
+			return NULL;
+	}
 	//填充数据位
 	char data[20];    //ip和port的字节表示加起来不超过20字节
 	memset(data,0,20);

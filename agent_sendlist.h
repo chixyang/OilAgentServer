@@ -12,10 +12,10 @@
 
 //发送节点
 struct send_node {
-	int sockfd;
-	struct sockaddr_in sendaddr;
-	char *buf;
-	uint16 buflen;
+	int sockfd;  //发送使用的套接字
+	struct sockaddr_in sendaddr; //目标地址
+	char *buf;  //发送内容
+	uint16 buflen; //发送长度
 	struct send_node *next;
 };
 typedef struct send_node SendNode;

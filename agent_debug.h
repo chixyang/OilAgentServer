@@ -7,7 +7,11 @@
 
 #include <time.h>
 #include <stdio.h>
-
+#include <pthread.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #define NONE         "\033[m"  
 #define RED          "\033[0;32;31m"
@@ -28,37 +32,46 @@
 
 
 //最大协议数据长度
-#define MAXDATALENGTH 512      //单次最大协议长度不超过512字节
+#define MAXDATALENGTH 512      //单次最大数据长度不超过512字节
 
 typedef unsigned char uint8;
 typedef unsigned short uint16;
 typedef unsigned int uint32;
 typedef unsigned long long uint64;
-typedef uint32 ip_t;
+typedef unsigned long ip_t;
 
+extern pthread_mutex_t log_write_lock;  //日志写锁
+extern int log_fd;      //日志文件描述符
+extern char *log_buf;   //日志缓存
+
+
+#define log_buf_len 256
 
 #define DEBUG
 
-
 #ifdef DEBUG
 #define debug(...) do{                                                      		\
-	           printf(RED"debug info: ***");                                     	\
-                   printf(__VA_ARGS__);                                     		\
-		   time_t now;								\
-		   struct tm *timenow;							\
-		   time(&now);								\
-		   timenow = localtime(&now);						\
-	           printf(GREEN"***debug line:%d,debug function:%s ,debug file:%s ,debug time:%s\n"NONE,__LINE__,__FUNCTION__,__FILE__,asctime(timenow)); 	\
-                   }while(0)
+		while(pthread_mutex_trylock(&log_write_lock));                                      		\
+					memset(log_buf,0,log_buf_len);  \
+                int log_w = sprintf(log_buf,__VA_ARGS__);    \
+		time_t now;   \
+		struct tm *timenow;   \
+		time(&now);     \
+		timenow = localtime(&now);   \
+			log_w += sprintf(log_buf+log_w,"\nline:%d,function:%s,file:%s,time:%s\n",__LINE__,__FUNCTION__,__FILE__,asctime(timenow));					\
+				write(log_fd,log_buf,log_w);  \
+			pthread_mutex_unlock(&log_write_lock);									\
+					}while(0) 
 #else 
 #define debug(...) do{}while(0)
 #endif
 
 
-
-
-
-
+/**
+ * 初始化日志文件
+ * @return 日志文件描述符
+ */
+int initLog();
 
 
 

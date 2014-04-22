@@ -1,5 +1,5 @@
 
-//发送列表要将所有的信息都复制过来，字符数组也要malloc个新的，以免原来的被被释放掉，影响发送
+//发送列表要将所有的信息都复制过来，字符数组也要malloc个新的，以免原来的被释放掉，影响发送
 #include "agent_sendlist.h"
 
 struct send_list *SendList;
@@ -18,6 +18,11 @@ void initSendList()
 //向队列中加入新发送节点
 int InSendQueue(int fd,struct sockaddr_in *addr,char *buf,uint16 len)
 {
+	if((addr == NULL) || (buf == NULL) || (len == 0))
+	{
+			debug("in send queue:paddr=%4u,buf=%4u,len=%2u",*((unsigned int *)&addr),*((unsigned int *)&buf),len);
+			return -1;
+	}
 	//新建发送节点
 	SendNode *sn = (SendNode *)malloc(sizeof(SendNode));
 	memset(sn,0,sizeof(SendNode));
