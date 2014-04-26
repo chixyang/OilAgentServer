@@ -30,3 +30,13 @@ int initLog()
 	return log_fd;
 }
 
+//获取当前时间字符串
+char *NowTimeString()
+{
+	time_t now;
+	struct tm *timenow;
+	time(&now);
+	timenow = localtime(&now);
+	return asctime(timenow);
+}
+

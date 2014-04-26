@@ -24,28 +24,21 @@ extern const char* database;
 
 
 //忙碌表结构
-struct DBList
+struct db_node
 {
   MYSQL * db_link;
-  struct DBList *next;
+  struct db_node *next;
 };
 
-typedef struct DBList dbList;
-
-//忙碌列表类型
-typedef dbList dbBusyList;
-//空闲列表类型
-typedef dbList dbIdleList;
+typedef struct db_node DBNode;
 
 
 //数据库池结构
 struct DBpool
 {
   pthread_mutex_t db_idlelock;   //空闲表互斥锁
-  pthread_mutex_t db_busylock;   //忙碌表互斥锁
   pthread_cond_t dbcond;    //条件
-  dbBusyList *busylist;     //忙碌列表
-  dbIdleList *idlelist;     //空闲列表
+  DBNode *idlelist;     //空闲列表
   int idle_size;            //空闲列表大小,专门加这个值是为了确保程序的正确性，还可以帮助系统分析是否添加数据库链接
 };
 
@@ -63,39 +56,22 @@ int dbpool_init(int max_size);
 
 /**
  * 获取空闲sql链接，若当前无空闲sql链接，则该函数阻塞，等待有的时候再返回
- * @return 空闲的MYSQL链接,NULL表示出错
+ * @return 空闲的数据库节点，里面包含MYSQL链接,NULL表示出错
  */
-MYSQL* getIdleConn();
-
-/**
- * 将节点插入忙碌列表
- * @param dbl 待插入的节点
- * @return 0表示插入成功，其他表示插入不成功
- */
-int inBusyList(dbBusyList *dbl);
+DBNode* getIdleConn();
 
 /**
  * 将节点插入空闲列表
  * @param dil 待插入的节点
  * @return 0表示插入成功，其他表示不成功
  */
-int inIdleList(dbIdleList *dil);
+int inIdleList(DBNode *dil);
 
 /**
- * sql链接的回收
+ * 数据库节点的回收
  * @param link 待回收的节点
  * @return 0表示回收成功，其他表示回收失败
  */
-int recycleConn(MYSQL *link);
-
-/**
- * 在链表中获取某个节点的前一个节点，该函数必须在dbpool->db_busylock或者dbpool->db_idlelock之间使用，否则是不安全的
- * @param dblist 提供的链表头
- * @param link 要查询的mysql链接
- * @param preNode 返回的前一个节点的指针的指针（注意：这里调试好久才找到原因）
- * @return 0 表示查到节点，若此时preNode为NULL，则查到的节点为第一个节点，无preNode，否则为查到节点的前一个节点
- *         返回其他表示未查到节点
- */
-int getPreNode(dbList *dblist,MYSQL *link,dbList **preNode);
+int recycleConn(DBNode *link);
 
 #endif

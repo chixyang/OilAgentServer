@@ -54,11 +54,7 @@ extern char *log_buf;   //日志缓存
 		while(pthread_mutex_trylock(&log_write_lock));                                      		\
 					memset(log_buf,0,log_buf_len);  \
                 int log_w = sprintf(log_buf,__VA_ARGS__);    \
-		time_t now;   \
-		struct tm *timenow;   \
-		time(&now);     \
-		timenow = localtime(&now);   \
-			log_w += sprintf(log_buf+log_w,"\nline:%d,function:%s,file:%s,time:%s\n",__LINE__,__FUNCTION__,__FILE__,asctime(timenow));					\
+			log_w += sprintf(log_buf+log_w,"\nline:%d,function:%s,file:%s,time:%s\n",__LINE__,__FUNCTION__,__FILE__,NowTimeString());					\
 				write(log_fd,log_buf,log_w);  \
 			pthread_mutex_unlock(&log_write_lock);									\
 					}while(0) 
@@ -73,6 +69,11 @@ extern char *log_buf;   //日志缓存
  */
 int initLog();
 
+/**
+ * 获取当前时间字符串
+ * @return 当前时间字符串
+ */
+char *NowTimeString();
 
 
 

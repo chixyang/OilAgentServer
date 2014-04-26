@@ -144,7 +144,7 @@ int main(int argc,char *argv[])
 		RecvCommand *rc = (RecvCommand *)malloc(sizeof(RecvCommand));
 		memset(rc,0,sizeof(RecvCommand));
 		rc->sockfd = listenfd;
-		socklen_t fromlen;
+		socklen_t fromlen = sizeof(struct sockaddr_in);  //必须要初始化，否则有可能报错
 		uint16 len = my_recvfrom(listenfd,rc->buf,0,(struct sockaddr*)&(rc->recv_addr),&fromlen);
 		rc->buflen = len;
 		if(len <= 0)
@@ -159,7 +159,7 @@ int main(int argc,char *argv[])
 		for(int i = 0;i < len;i++)
 			printf(" %x ",rc->buf[i]);
 		printf("    recv finished\n");
-	//	debug("read data from ip :%s port :%d length :%2u\n ",inet_ntoa(rc->recv_addr.sin_addr),ntohs(rc->recv_addr.sin_port),len);
+		debug("read data from ip :%s port :%d length :%2u\n ",inet_ntoa(rc->recv_addr.sin_addr),ntohs(rc->recv_addr.sin_port),len);
 
 		//新线程执行任务
 		pthread_t tid;

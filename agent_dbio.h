@@ -33,31 +33,6 @@ typedef struct userinfo DBUser;
 uint64 getCurrentTimeSeconds();
 
 /**
- * 添加机房服务器信息
- * @param account 机房服务器账户
- * @param ip 机房服务器ip
- * @param port 机房服务器port
- * @return 0 添加成功，其他失败
- */
-int addPrivateServer(char *account,ip_t ip,uint16 port);
-
-/**
- * 添加用户信息
- * @param username 用户名
- * @param password 用户密码
- * @return 0 添加成功，其他失败
- */
-int addUser(char *username,char *password);
-
-/**
- * 添加user、server关联信息
- * @param username 用户名
- * @param account 服务器账号
- * @return 0 添加成功，其他失败
- */
-int addUserInServer(char *username,char *account);
-
-/**
  * 判断用户名和密码是否正确
  * @param username 用户名
  * @param password 密码
